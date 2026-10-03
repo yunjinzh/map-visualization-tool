@@ -1,0 +1,412 @@
+import { useMemo, useState } from 'react';
+import { CircleMarker, MapContainer, Popup, TileLayer } from 'react-leaflet';
+import type { LatLngExpression } from 'leaflet';
+import ReactECharts from 'echarts-for-react';
+import { Activity, Building2, MapPinned, TrendingUp, Users } from 'lucide-react';
+
+type Category = 'All' | 'Retail' | 'Logistics' | 'Transit' | 'Public Service';
+
+type Point = {
+  id: number;
+  name: string;
+  category: Exclude<Category, 'All'>;
+  city: string;
+  region: string;
+  lat: number;
+  lng: number;
+  value: number;
+  status: 'Stable' | 'Busy' | 'High Demand';
+  growth: number;
+  detail: string;
+};
+
+const points: Point[] = [
+  {
+    id: 1,
+    name: 'Downtown Retail Hub',
+    category: 'Retail',
+    city: 'Shanghai',
+    region: 'East China',
+    lat: 31.2304,
+    lng: 121.4737,
+    value: 920,
+    status: 'Busy',
+    growth: 12.4,
+    detail: 'High foot traffic from office and residential areas.'
+  },
+  {
+    id: 2,
+    name: 'West Distribution Center',
+    category: 'Logistics',
+    city: 'Chengdu',
+    region: 'Southwest China',
+    lat: 30.5728,
+    lng: 104.0668,
+    value: 760,
+    status: 'High Demand',
+    growth: 18.1,
+    detail: 'Strong outbound logistics demand tied to e-commerce.'
+  },
+  {
+    id: 3,
+    name: 'Metro Line 5',
+    category: 'Transit',
+    city: 'Beijing',
+    region: 'North China',
+    lat: 39.9042,
+    lng: 116.4074,
+    value: 640,
+    status: 'Stable',
+    growth: 8.7,
+    detail: 'Rail ridership remains stable with periodic surges.'
+  },
+  {
+    id: 4,
+    name: 'Public Health Cluster',
+    category: 'Public Service',
+    city: 'Shenzhen',
+    region: 'South China',
+    lat: 22.5431,
+    lng: 114.0579,
+    value: 510,
+    status: 'Stable',
+    growth: 10.5,
+    detail: 'Public service activity is evenly distributed across districts.'
+  },
+  {
+    id: 5,
+    name: 'Innovation Square',
+    category: 'Retail',
+    city: 'Hangzhou',
+    region: 'East China',
+    lat: 30.2741,
+    lng: 120.1551,
+    value: 870,
+    status: 'Busy',
+    growth: 15.3,
+    detail: 'Consumer business and tech employment drive demand.'
+  },
+  {
+    id: 6,
+    name: 'Express Route Hub',
+    category: 'Logistics',
+    city: 'Guangzhou',
+    region: 'South China',
+    lat: 23.1291,
+    lng: 113.2644,
+    value: 835,
+    status: 'High Demand',
+    growth: 21.2,
+    detail: 'Peak delivery volumes around major trade corridors.'
+  },
+  {
+    id: 7,
+    name: 'City Loop Terminal',
+    category: 'Transit',
+    city: 'Nanjing',
+    region: 'East China',
+    lat: 32.0603,
+    lng: 118.7969,
+    value: 590,
+    status: 'Busy',
+    growth: 9.6,
+    detail: 'Transit use picks up during commuting hours.'
+  },
+  {
+    id: 8,
+    name: 'Regional Service Center',
+    category: 'Public Service',
+    city: 'Xi\'an',
+    region: 'Northwest China',
+    lat: 34.3416,
+    lng: 108.9398,
+    value: 470,
+    status: 'Stable',
+    growth: 7.8,
+    detail: 'Regional social infrastructure supports broad service coverage.'
+  }
+];
+
+const categoryColors: Record<Exclude<Category, 'All'>, string> = {
+  Retail: '#4DA3FF',
+  Logistics: '#38D39F',
+  Transit: '#F9B84F',
+  'Public Service': '#B88CFF'
+};
+
+const filters: Category[] = ['All', 'Retail', 'Logistics', 'Transit', 'Public Service'];
+
+const formatStat = (value: number) => `${value.toLocaleString()} k`;
+
+export default function App() {
+  const [selectedCategory, setSelectedCategory] = useState<Category>('All');
+  const [selectedPoint, setSelectedPoint] = useState<Point | null>(points[0]);
+
+  const filteredPoints = useMemo(() => {
+    if (selectedCategory === 'All') return points;
+    return points.filter((point) => point.category === selectedCategory);
+  }, [selectedCategory]);
+
+  const totalValue = filteredPoints.reduce((sum, point) => sum + point.value, 0);
+  const averageGrowth =
+    filteredPoints.length > 0
+      ? filteredPoints.reduce((sum, point) => sum + point.growth, 0) / filteredPoints.length
+      : 0;
+
+  const chartData = useMemo(() => {
+    const regionMap: Record<string, number> = {};
+    filteredPoints.forEach((point) => {
+      regionMap[point.region] = (regionMap[point.region] ?? 0) + point.value;
+    });
+
+    return Object.entries(regionMap).map(([name, value]) => ({ name, value }));
+  }, [filteredPoints]);
+
+  const chartOption = {
+    tooltip: {
+      trigger: 'axis',
+      backgroundColor: '#111827',
+      borderColor: '#374151',
+      textStyle: { color: '#f9fafb' }
+    },
+    grid: { left: 12, right: 12, top: 20, bottom: 35, containLabel: true },
+    xAxis: {
+      type: 'category',
+      data: chartData.map((item) => item.name),
+      axisLabel: { color: '#94a3b8', fontSize: 10 }
+    },
+    yAxis: {
+      type: 'value',
+      axisLabel: { color: '#94a3b8', fontSize: 10 }
+    },
+    series: [
+      {
+        data: chartData.map((item) => item.value),
+        type: 'bar',
+        itemStyle: {
+          color: '#4DA3FF',
+          borderRadius: [8, 8, 0, 0]
+        },
+        barWidth: 24
+      }
+    ]
+  };
+
+  const mapCenter: LatLngExpression = [32.5, 110.5];
+
+  return (
+    <div className="page-shell">
+      <aside className="sidebar panel">
+        <div className="brand-block">
+          <div className="brand-icon">M</div>
+          <div>
+            <p className="eyebrow">Geospatial insights</p>
+            <h1>MapFlow</h1>
+          </div>
+        </div>
+
+        <div className="filter-group">
+          <p className="section-label">Filter views</p>
+          <div className="filter-list">
+            {filters.map((filter) => (
+              <button
+                key={filter}
+                className={filter === selectedCategory ? 'filter-button active' : 'filter-button'}
+                onClick={() => {
+                  setSelectedCategory(filter);
+                  const nextPoint = filter === 'All' ? points[0] : points.find((point) => point.category === filter) ?? points[0];
+                  setSelectedPoint(nextPoint);
+                }}
+              >
+                {filter}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="stats-card">
+          <div className="stats-header">
+            <div className="mini-icon purple"><MapPinned size={16} /></div>
+            <span>Network load</span>
+          </div>
+          <strong>{formatStat(totalValue)}</strong>
+          <small>Live volume index</small>
+        </div>
+
+        <div className="stats-card compact">
+          <div className="stats-header">
+            <div className="mini-icon blue"><TrendingUp size={16} /></div>
+            <span>Avg. growth</span>
+          </div>
+          <strong>{averageGrowth.toFixed(1)}%</strong>
+        </div>
+      </aside>
+
+      <main className="main-panel">
+        <header className="topbar panel">
+          <div>
+            <p className="eyebrow">Operations overview</p>
+            <h2>City network performance</h2>
+          </div>
+          <div className="topbar-meta">
+            <span className="badge">Updated 5 min ago</span>
+            <button className="primary-button">Export report</button>
+          </div>
+        </header>
+
+        <section className="metric-row">
+          <article className="panel metric-card">
+            <div className="metric-icon blue"><Users size={20} /></div>
+            <div>
+              <p>Active sites</p>
+              <strong>{filteredPoints.length}</strong>
+            </div>
+          </article>
+          <article className="panel metric-card">
+            <div className="metric-icon green"><Activity size={20} /></div>
+            <div>
+              <p>Operational health</p>
+              <strong>94.2%</strong>
+            </div>
+          </article>
+          <article className="panel metric-card">
+            <div className="metric-icon orange"><Building2 size={20} /></div>
+            <div>
+              <p>Priority zones</p>
+              <strong>7</strong>
+            </div>
+          </article>
+        </section>
+
+        <section className="content-grid">
+          <div className="panel map-panel">
+            <MapContainer center={mapCenter} zoom={4} scrollWheelZoom className="map-view">
+              <TileLayer
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              />
+
+              {filteredPoints.map((point) => (
+                <CircleMarker
+                  key={point.id}
+                  center={[point.lat, point.lng]}
+                  radius={Math.max(9, point.value / 90)}
+                  pathOptions={{
+                    color: categoryColors[point.category],
+                    fillColor: categoryColors[point.category],
+                    fillOpacity: 0.8,
+                    weight: 1.5
+                  }}
+                  eventHandlers={{
+                    click: () => setSelectedPoint(point)
+                  }}
+                >
+                  <Popup>
+                    <div className="popup-card">
+                      <strong>{point.name}</strong>
+                      <span>{point.category}</span>
+                      <p>{point.detail}</p>
+                      <small>{point.city}</small>
+                    </div>
+                  </Popup>
+                </CircleMarker>
+              ))}
+            </MapContainer>
+          </div>
+
+          <aside className="panel detail-panel">
+            {selectedPoint ? (
+              <>
+                <div className="detail-header">
+                  <div>
+                    <p className="eyebrow">Selected site</p>
+                    <h3>{selectedPoint.name}</h3>
+                  </div>
+                  <span className="status-tag" style={{ background: `${categoryColors[selectedPoint.category]}1A`, color: categoryColors[selectedPoint.category] }}>
+                    {selectedPoint.category}
+                  </span>
+                </div>
+
+                <div className="detail-metrics">
+                  <div>
+                    <small>City</small>
+                    <strong>{selectedPoint.city}</strong>
+                  </div>
+                  <div>
+                    <small>Status</small>
+                    <strong>{selectedPoint.status}</strong>
+                  </div>
+                  <div>
+                    <small>Volume</small>
+                    <strong>{formatStat(selectedPoint.value)}</strong>
+                  </div>
+                  <div>
+                    <small>Growth</small>
+                    <strong>{selectedPoint.growth}%</strong>
+                  </div>
+                </div>
+
+                <p className="detail-copy">{selectedPoint.detail}</p>
+
+                <div className="legend-list">
+                  <div>
+                    <span className="legend-dot retail"></span>
+                    Retail
+                  </div>
+                  <div>
+                    <span className="legend-dot logistics"></span>
+                    Logistics
+                  </div>
+                  <div>
+                    <span className="legend-dot transit"></span>
+                    Transit
+                  </div>
+                  <div>
+                    <span className="legend-dot service"></span>
+                    Public Service
+                  </div>
+                </div>
+              </>
+            ) : (
+              <p>Select a point to inspect details.</p>
+            )}
+          </aside>
+        </section>
+
+        <section className="bottom-grid">
+          <div className="panel chart-card">
+            <div className="card-title-row">
+              <h3>Region comparison</h3>
+              <span className="badge neutral">Value by region</span>
+            </div>
+            <ReactECharts option={chartOption} style={{ height: 260, width: '100%' }} />
+          </div>
+
+          <div className="panel list-card">
+            <div className="card-title-row">
+              <h3>Latest monitoring</h3>
+              <span className="badge neutral">8 sites</span>
+            </div>
+
+            <ul className="site-list">
+              {filteredPoints.map((point) => (
+                <li key={point.id} className={selectedPoint?.id === point.id ? 'site-item active' : 'site-item'} onClick={() => setSelectedPoint(point)}>
+                  <div className="site-item__head">
+                    <span className="site-name">{point.name}</span>
+                    <span className="site-badge" style={{ color: categoryColors[point.category], background: `${categoryColors[point.category]}1A` }}>
+                      {point.category}
+                    </span>
+                  </div>
+                  <div className="site-meta">
+                    <span>{point.city}</span>
+                    <strong>{formatStat(point.value)}</strong>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      </main>
+    </div>
+  );
+}
